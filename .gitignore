@@ -2,6 +2,7 @@
 /dist
 /packaging/.build
 *.deb
+!/Packages/*.deb
 *.swp
 *.swo
 .DS_Store

@@ -28,19 +28,16 @@ cargo build --release
 - `./target/release/logtool` — CLI 命令
 - `./target/release/logtool-daemon` — 守护进程
 
-## 构建 Deb 包
+## Deb 包
 
-```bash
-./scripts/build-deb.sh
-```
+仓库提供预构建 Deb 包（用于发布）：
 
-输出文件：
-- `./dist/logtool_<version>_<arch>.deb`
+- `./Packages/logtool_<version>_<arch>.deb`
 
 安装 Deb：
 
 ```bash
-sudo apt install ./dist/logtool_$(sed -n 's/^version = \"\\(.*\\)\"/\\1/p' Cargo.toml | head -n 1)_$(dpkg --print-architecture).deb
+sudo apt install ./Packages/logtool_<version>_<arch>.deb
 ```
 
 ## 项目目录
@@ -48,8 +45,7 @@ sudo apt install ./dist/logtool_$(sed -n 's/^version = \"\\(.*\\)\"/\\1/p' Cargo
 ```text
 .
 ├── src/                    # Rust 源码（库 + CLI + daemon）
-├── scripts/                # 构建与发布脚本
-├── packaging/deb/          # deb 打包元数据（service + maintainer scripts）
+├── Packages/               # 发布用 deb 包
 ├── logtool.service         # 手动安装时使用的 systemd unit
 ├── Cargo.toml
 └── README.md
