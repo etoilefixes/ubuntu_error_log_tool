@@ -1,0 +1,36 @@
+name: Release Deb Package
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Deb Assets
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(Packages/*.deb)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No deb files found in Packages/" >&2
+            exit 1
+          fi
+          echo "Found assets:"
+          printf ' - %s\n' "${files[@]}"
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            Packages/*.deb
+          generate_release_notes: true
