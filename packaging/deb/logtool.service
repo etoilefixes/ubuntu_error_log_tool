@@ -1,0 +1,22 @@
+[Unit]
+Description=logtool system log analysis daemon
+Documentation=https://github.com/your-repo/logtool
+After=systemd-journald.service
+Wants=systemd-journald.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/logtool-daemon
+ExecStartPre=/bin/rm -f /run/logtool.sock
+Restart=on-failure
+RestartSec=5
+
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/
+ReadWritePaths=/run
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

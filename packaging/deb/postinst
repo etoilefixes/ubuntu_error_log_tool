@@ -1,0 +1,13 @@
+#!/bin/sh
+set -e
+
+if ! getent group logtool >/dev/null 2>&1; then
+  groupadd --system logtool || true
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload || true
+  systemctl enable --now logtool.service || true
+fi
+
+exit 0

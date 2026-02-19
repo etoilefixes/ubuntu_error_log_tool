@@ -1,0 +1,23 @@
+[Unit]
+Description=logtool 系统日志分析守护进程
+Documentation=https://github.com/your-repo/logtool
+After=systemd-journald.service
+Wants=systemd-journald.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/logtool-daemon
+ExecStartPre=/bin/rm -f /run/logtool.sock
+Restart=on-failure
+RestartSec=5
+
+# 安全加固
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/
+ReadWritePaths=/run
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

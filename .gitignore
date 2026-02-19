@@ -1,0 +1,9 @@
+/target
+/dist
+/packaging/.build
+*.deb
+*.swp
+*.swo
+.DS_Store
+.idea/
+.vscode/
