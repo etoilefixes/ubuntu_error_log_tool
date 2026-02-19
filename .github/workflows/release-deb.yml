@@ -15,10 +15,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Validate Deb Assets
         shell: bash
         run: |
+          set -euo pipefail
           shopt -s nullglob
           files=(Packages/*.deb)
           if [ ${#files[@]} -eq 0 ]; then
@@ -28,9 +31,88 @@ jobs:
           echo "Found assets:"
           printf ' - %s\n' "${files[@]}"
 
+      - name: Build Chinese Release Notes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          tag="${GITHUB_REF_NAME}"
+          repo_url="https://github.com/${GITHUB_REPOSITORY}"
+          notes_file="release-notes.md"
+          shopt -s nullglob
+          files=(Packages/*.deb)
+
+          prev_tag=""
+          if git rev-parse "${tag}^" >/dev/null 2>&1; then
+            prev_tag="$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)"
+          fi
+
+          {
+            echo "# ${tag} 发布说明"
+            echo
+            echo "## 版本概览"
+            echo "- 版本标签：\`${tag}\`"
+            echo "- 发布时间（UTC）：$(date -u '+%Y-%m-%d %H:%M:%S')"
+            echo "- 仓库地址：${repo_url}"
+            echo
+            echo "## 发布内容"
+            echo "本版本提供 Ubuntu 系统异常日志诊断工具 \`logtool\` 的 Deb 安装包，"
+            echo "包含 CLI 客户端与守护进程，重点用于系统卡死、驱动异常、服务报错定位。"
+            echo
+            echo "## 资产文件"
+            for file in "${files[@]}"; do
+              base="$(basename "$file")"
+              size_bytes="$(stat -c%s "$file")"
+              size_human="$(numfmt --to=iec --suffix=B "$size_bytes")"
+              sha256="$(sha256sum "$file" | awk '{print $1}')"
+              download_url="${repo_url}/releases/download/${tag}/${base}"
+
+              echo "### ${base}"
+              echo "- 下载地址：${download_url}"
+              echo "- 文件大小：${size_human} (${size_bytes} bytes)"
+              echo "- SHA256：\`${sha256}\`"
+            done
+            echo
+            echo "## 安装与启动"
+            echo '```bash'
+            echo '# 下载后安装（示例）'
+            echo 'sudo apt install ./logtool_0.2.0_amd64.deb'
+            echo
+            echo '# 查看服务状态'
+            echo 'sudo systemctl status logtool --no-pager'
+            echo
+            echo '# 普通用户访问 socket（首次需要）'
+            echo 'sudo usermod -aG logtool $USER'
+            echo 'newgrp logtool'
+            echo '```'
+            echo
+            echo "## 快速验证"
+            echo '```bash'
+            echo '# 分析最近错误'
+            echo 'logtool --max-lines 50'
+            echo
+            echo '# 实时流式查看'
+            echo 'logtool --stream --max-lines 20'
+            echo '```'
+            echo
+            echo "## 变更记录"
+            if [ -n "$prev_tag" ]; then
+              echo "对比范围：${prev_tag}...${tag}"
+              echo
+              git log --pretty='- %h %s' "${prev_tag}..${tag}"
+              echo
+              echo "完整对比：${repo_url}/compare/${prev_tag}...${tag}"
+            else
+              echo "首个发布版本，暂无历史对比。"
+              echo
+              git log --pretty='- %h %s' "${tag}" | head -n 20
+            fi
+          } > "$notes_file"
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
             Packages/*.deb
-          generate_release_notes: true
+          body_path: release-notes.md
+          generate_release_notes: false
