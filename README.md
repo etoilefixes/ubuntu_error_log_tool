@@ -56,8 +56,24 @@ sudo apt install ./Packages/logtool_0.2.0_amd64.deb
 ### 常用命令
 
 ```bash
-# 默认分析：当前启动周期、最近 2 小时、错误及以上
+# 进入交互模式
 logtool
+
+# 交互模式常用命令
+# logtool> help
+# logtool> doctor
+# logtool> boots
+# logtool> analyze --since "12 hours ago" --priority 4
+# logtool> exit
+
+# 单次执行默认分析（不进入交互）
+logtool run
+
+# 环境自检（权限 / socket / journald 持久化）
+logtool doctor
+
+# 列出启动周期（便于定位重启前后日志）
+logtool boots
 
 # 扩大范围并包含警告
 logtool --priority 4 --since "12 hours ago" --top 20
@@ -81,16 +97,34 @@ newgrp logtool
 sudo systemctl restart logtool
 ```
 
+### 重启后日志保留（推荐）
+
+如未启用 journald 持久化，系统重启后历史日志可能丢失。
+
+```bash
+sudo mkdir -p /var/log/journal
+sudo sed -i 's/^#\?Storage=.*/Storage=persistent/' /etc/systemd/journald.conf
+sudo systemctl restart systemd-journald
+```
+
 ### 参数总览
 
 | 参数 | 说明 |
 |------|------|
+| `run` | 单次执行默认分析（不进入交互） |
+| `analyze` | `--analyze` 别名 |
+| `stream` | `--stream` 别名 |
+| `exit` / `quit` / `q` | 仅交互模式：退出 |
+| `-h, --help` / `help` | 显示帮助信息 |
+| `-V, --version` / `version` | 显示版本信息（需单独使用） |
+| `--doctor` / `doctor` | 运行环境自检（需单独使用） |
+| `--list-boots` / `boots` | 列出启动周期（需单独使用） |
 | `--analyze` | 归因分析模式（默认） |
 | `--stream` | 原始日志流模式 |
 | `--since <时间>` | 开始时间（默认 `2 hours ago`） |
 | `--until <时间>` | 结束时间 |
-| `--boot [id]` | 当前启动周期或指定启动 ID |
-| `--all-boots` | 跨所有启动周期排查 |
+| `--boot [id]` | 仅当前启动周期或指定启动 ID |
+| `--all-boots` | 跨所有启动周期排查（默认） |
 | `-p, --priority <级别>` | 优先级过滤（默认 `3`） |
 | `-u, --unit <名称>` | 按服务单元过滤（可重复） |
 | `-k, --kernel` | 仅查看内核日志 |
@@ -163,8 +197,13 @@ sudo apt install ./Packages/logtool_0.2.0_amd64.deb
 
 ```bash
 logtool
+logtool run
+logtool doctor
+logtool boots
+logtool analyze --priority 4 --since "12 hours ago" --top 20
 logtool --priority 4 --since "12 hours ago" --top 20
 logtool --kernel --priority 4 --since "6 hours ago"
+logtool stream --follow
 logtool --stream --follow
 ```
 
@@ -178,6 +217,16 @@ logtool --stream --follow
 sudo usermod -aG logtool $USER
 newgrp logtool
 sudo systemctl restart logtool
+```
+
+### Keep Logs After Reboot (Recommended)
+
+If persistent journald storage is not enabled, historical logs may be lost after reboot.
+
+```bash
+sudo mkdir -p /var/log/journal
+sudo sed -i 's/^#\?Storage=.*/Storage=persistent/' /etc/systemd/journald.conf
+sudo systemctl restart systemd-journald
 ```
 
 ### Service Operations

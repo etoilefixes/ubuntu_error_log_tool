@@ -51,6 +51,9 @@ pub enum BootFilter {
 pub enum Action {
     Run(Config),
     Help,
+    Version,
+    Doctor,
+    ListBoots,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -124,7 +127,8 @@ impl Default for Config {
             until: None,
             units: Vec::new(),
             grep_terms: Vec::new(),
-            boot: BootFilter::Current,
+            // 默认跨启动周期查询，避免“异常后重启就看不到”的常见排障盲区。
+            boot: BootFilter::Disabled,
             follow: false,
             kernel_only: false,
             output_json: false,
@@ -146,7 +150,14 @@ pub fn parse_args(args: &[String]) -> Result<Action, String> {
         let arg = &args[i];
 
         match arg.as_str() {
-            "--help" | "-h" => return Ok(Action::Help),
+            "--help" | "-h" | "help" => return Ok(Action::Help),
+            "--version" | "-V" | "version" => {
+                return standalone_action(args, arg, Action::Version);
+            }
+            "--doctor" | "doctor" => return standalone_action(args, arg, Action::Doctor),
+            "--list-boots" | "boots" => {
+                return standalone_action(args, arg, Action::ListBoots);
+            }
             "--analyze" => config.mode = RunMode::Analyze,
             "--stream" => config.mode = RunMode::Stream,
             "--all-boots" => config.boot = BootFilter::Disabled,
@@ -227,6 +238,13 @@ pub fn parse_args(args: &[String]) -> Result<Action, String> {
 
     validate_config(&config)?;
     Ok(Action::Run(config))
+}
+
+fn standalone_action(args: &[String], arg: &str, action: Action) -> Result<Action, String> {
+    if args.len() != 1 {
+        return Err(format!("{arg} 不能与其他参数同时使用"));
+    }
+    Ok(action)
 }
 
 pub fn validate_config(config: &Config) -> Result<(), String> {
@@ -1013,20 +1031,36 @@ pub fn help_text() -> &'static str {
 默认模式为 --analyze（归因分析，定位可疑程序/包）。
 
 用法：
-  logtool [选项]
+  logtool                    进入交互模式（输入 help/doctor/boots）
+  logtool [命令|选项]        单次执行模式
 
 模式：
       --analyze             归因分析模式，排列可疑程序/服务（默认）
       --stream              原始日志流模式（直接输出日志）
+      analyze               归因分析模式别名
+      stream                原始日志流模式别名
+
+命令：
+  help                     显示帮助（等同 --help）
+  version                  显示版本（等同 --version）
+  doctor                   运行环境自检（等同 --doctor）
+  boots                    列出启动周期（等同 --list-boots）
+  run                      按默认分析执行（适合交互模式）
+
+交互模式：
+  exit / quit / q          退出交互模式
 
 选项：
   -h, --help                显示此帮助信息
+  -V, --version             显示版本信息（需单独使用）
+      --doctor              运行环境自检（需单独使用）
+      --list-boots          列出启动周期（需单独使用）
   -f, --follow              持续输出新日志（仅 --stream 模式）
   -k, --kernel              仅查看内核日志（等同 journalctl --dmesg）
   -u, --unit <名称>         按 systemd 服务单元过滤（可重复）
   -g, --grep <关键词>       按关键词过滤（可重复，AND 逻辑）
-  -b, --boot [id]           当前启动周期日志，或指定启动 ID
-      --all-boots           跨所有启动周期排查
+  -b, --boot [id]           仅当前启动周期日志，或指定启动 ID
+      --all-boots           跨所有启动周期排查（默认）
   -p, --priority <级别>     优先级过滤（默认：3 / 错误）
   -n, --max-lines <N>       最多扫描/输出的匹配日志行数
       --top <N>             分析报告展示前 N 个可疑来源（默认：10）
@@ -1038,6 +1072,8 @@ pub fn help_text() -> &'static str {
 
 示例：
   logtool
+  logtool doctor
+  logtool boots
   logtool --since \"30 min ago\" --top 15
   logtool --kernel --priority 4 --grep hang
   logtool --stream --follow --unit ssh
@@ -1063,7 +1099,7 @@ mod tests {
         };
 
         assert_eq!(config.mode, RunMode::Analyze);
-        assert_eq!(config.boot, BootFilter::Current);
+        assert_eq!(config.boot, BootFilter::Disabled);
         assert_eq!(config.since, Some(DEFAULT_SINCE.to_string()));
     }
 
@@ -1075,6 +1111,42 @@ mod tests {
         };
         assert_eq!(config.mode, RunMode::Stream);
         assert!(config.follow);
+    }
+
+    #[test]
+    fn help_subcommand_works() {
+        let action = parse(&["help"]).expect("解析应成功");
+        assert_eq!(action, Action::Help);
+    }
+
+    #[test]
+    fn version_flag_returns_version_action() {
+        let action = parse(&["--version"]).expect("解析应成功");
+        assert_eq!(action, Action::Version);
+    }
+
+    #[test]
+    fn doctor_command_returns_doctor_action() {
+        let action = parse(&["doctor"]).expect("解析应成功");
+        assert_eq!(action, Action::Doctor);
+    }
+
+    #[test]
+    fn list_boots_flag_returns_action() {
+        let action = parse(&["--list-boots"]).expect("解析应成功");
+        assert_eq!(action, Action::ListBoots);
+    }
+
+    #[test]
+    fn doctor_rejects_mixed_arguments() {
+        let err = parse(&["--doctor", "--stream"]).expect_err("解析应失败");
+        assert!(err.contains("--doctor"));
+    }
+
+    #[test]
+    fn version_rejects_mixed_arguments() {
+        let err = parse(&["--version", "--stream"]).expect_err("解析应失败");
+        assert!(err.contains("--version"));
     }
 
     #[test]

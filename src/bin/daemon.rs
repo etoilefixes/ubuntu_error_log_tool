@@ -13,6 +13,7 @@ use logtool::{
 };
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::{UnixListener, UnixStream};
+use std::path::Path;
 use std::process::Command;
 use std::sync::{
     Arc,
@@ -71,6 +72,7 @@ fn run_daemon() -> Result<(), String> {
     eprintln!("   Socket 权限：0660（owner + group）");
     eprintln!("   Socket 组：{SOCKET_GROUP}（若存在）");
     eprintln!("   最大并发请求：{MAX_ACTIVE_CLIENTS}");
+    warn_if_journal_not_persistent();
 
     let active_clients = Arc::new(AtomicUsize::new(0));
 
@@ -228,4 +230,16 @@ fn daemon_help_text() -> &'static str {
     sudo systemctl start logtool
     sudo systemctl enable logtool
 "
+}
+
+fn warn_if_journal_not_persistent() {
+    if Path::new("/var/log/journal").is_dir() {
+        return;
+    }
+
+    eprintln!("警告：未检测到 /var/log/journal，日志可能为 volatile（重启后丢失）");
+    eprintln!("   建议启用持久化：");
+    eprintln!("   1) sudo mkdir -p /var/log/journal");
+    eprintln!("   2) 在 /etc/systemd/journald.conf 设置 Storage=persistent");
+    eprintln!("   3) sudo systemctl restart systemd-journald");
 }
