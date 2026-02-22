@@ -76,7 +76,7 @@ jobs:
             echo "## 安装与启动"
             echo '```bash'
             echo '# 下载后安装（示例）'
-            echo 'sudo apt install ./logtool_0.2.0_amd64.deb'
+            echo 'sudo apt install ./logtool_0.2.4_amd64.deb'
             echo
             echo '# 查看服务状态'
             echo 'sudo systemctl status logtool --no-pager'

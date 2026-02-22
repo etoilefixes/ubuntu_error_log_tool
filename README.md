@@ -50,7 +50,7 @@ sudo systemctl enable --now logtool
 ### 安装（Deb）
 
 ```bash
-sudo apt install ./Packages/logtool_0.2.0_amd64.deb
+sudo apt install ./Packages/logtool_0.2.4_amd64.deb
 ```
 
 ### 常用命令
@@ -190,7 +190,7 @@ sudo systemctl enable --now logtool
 ### Install (Deb)
 
 ```bash
-sudo apt install ./Packages/logtool_0.2.0_amd64.deb
+sudo apt install ./Packages/logtool_0.2.4_amd64.deb
 ```
 
 ### Common Usage
