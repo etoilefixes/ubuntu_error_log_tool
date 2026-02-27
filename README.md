@@ -39,8 +39,8 @@ cargo build --release
 ### 安装（手动）
 
 ```bash
-sudo cp target/release/logtool /usr/local/bin/
-sudo cp target/release/logtool-daemon /usr/local/bin/
+sudo cp target/release/logtool /usr/bin/
+sudo cp target/release/logtool-daemon /usr/bin/
 sudo groupadd -f logtool
 sudo cp logtool.service /etc/systemd/system/
 sudo systemctl daemon-reload
@@ -116,7 +116,7 @@ sudo systemctl restart systemd-journald
 | `stream` | `--stream` 别名 |
 | `exit` / `quit` / `q` | 仅交互模式：退出 |
 | `-h, --help` / `help` | 显示帮助信息 |
-| `-V, --version` / `version` | 显示版本信息（需单独使用） |
+| `-v, -V, --version` / `version` | 显示版本信息（需单独使用） |
 | `--doctor` / `doctor` | 运行环境自检（需单独使用） |
 | `--list-boots` / `boots` | 列出启动周期（需单独使用） |
 | `--analyze` | 归因分析模式（默认） |
@@ -125,11 +125,11 @@ sudo systemctl restart systemd-journald
 | `--until <时间>` | 结束时间 |
 | `--boot [id]` | 仅当前启动周期或指定启动 ID |
 | `--all-boots` | 跨所有启动周期排查（默认） |
-| `-p, --priority <级别>` | 优先级过滤（默认 `3`） |
+| `-p, --priority <级别>` | 优先级过滤（支持 `0-7` 或 `err/warning/info/debug`，默认 `3`） |
 | `-u, --unit <名称>` | 按服务单元过滤（可重复） |
 | `-k, --kernel` | 仅查看内核日志 |
 | `-g, --grep <关键词>` | 关键词过滤（可重复，AND） |
-| `-n, --max-lines <N>` | 最多扫描行数 |
+| `-n, --max-lines <N>` | 最多扫描行数（`--stream --follow` 未显式设置时默认不限制） |
 | `--top <N>` | 展示前 N 个可疑来源（默认 `10`） |
 | `--show-command` | 显示生成的 journalctl 命令 |
 | `-f, --follow` | 持续输出新日志（仅 `--stream`） |
@@ -179,8 +179,8 @@ cargo build --release
 ### Install (manual)
 
 ```bash
-sudo cp target/release/logtool /usr/local/bin/
-sudo cp target/release/logtool-daemon /usr/local/bin/
+sudo cp target/release/logtool /usr/bin/
+sudo cp target/release/logtool-daemon /usr/bin/
 sudo groupadd -f logtool
 sudo cp logtool.service /etc/systemd/system/
 sudo systemctl daemon-reload

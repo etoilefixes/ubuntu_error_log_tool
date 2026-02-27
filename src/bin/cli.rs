@@ -236,7 +236,7 @@ fn handle_analyze_response(stream: &UnixStream) -> Result<(), String> {
         Ok(response) => response,
         Err(_) => {
             if let Ok(error) = serde_json::from_str::<ErrorResponse>(&response_line) {
-                return Err(format!("守护进程返回错误：{}", error.error));
+                return Err(format_daemon_error(&error));
             }
             return Err("解析响应 JSON 失败：响应格式不受支持".to_string());
         }
@@ -256,7 +256,7 @@ fn handle_stream_response(stream: &UnixStream) -> Result<(), String> {
             Ok(msg) => msg,
             Err(_) => {
                 if let Ok(error) = serde_json::from_str::<ErrorResponse>(&line) {
-                    return Err(format!("守护进程返回错误：{}", error.error));
+                    return Err(format_daemon_error(&error));
                 }
                 return Err("解析流消息失败：响应格式不受支持".to_string());
             }
@@ -274,6 +274,17 @@ fn handle_stream_response(stream: &UnixStream) -> Result<(), String> {
     }
 
     Ok(())
+}
+
+fn format_daemon_error(error: &ErrorResponse) -> String {
+    let mut out = format!("守护进程返回错误：{}", error.error);
+    if let Some(code) = &error.code {
+        out.push_str(&format!("\n错误码：{code}"));
+    }
+    if let Some(hint) = &error.hint {
+        out.push_str(&format!("\n{hint}"));
+    }
+    out
 }
 
 fn print_boot_list() -> Result<(), String> {
@@ -483,5 +494,18 @@ mod tests {
     fn normalize_aliases_run_maps_to_default_args() {
         let args = normalize_command_aliases(vec!["run".to_string()]);
         assert!(args.is_empty());
+    }
+
+    #[test]
+    fn format_daemon_error_includes_code_and_hint_when_present() {
+        let err = ErrorResponse {
+            error: "bad request".to_string(),
+            code: Some("invalid_json".to_string()),
+            hint: Some("修复：运行 logtool --help".to_string()),
+        };
+        let text = format_daemon_error(&err);
+        assert!(text.contains("bad request"));
+        assert!(text.contains("invalid_json"));
+        assert!(text.contains("运行 logtool --help"));
     }
 }

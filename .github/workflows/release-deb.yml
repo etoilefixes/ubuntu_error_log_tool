@@ -41,6 +41,7 @@ jobs:
           notes_file="release-notes.md"
           shopt -s nullglob
           files=(Packages/*.deb)
+          example_deb="$(basename "${files[0]}")"
 
           prev_tag=""
           if git rev-parse "${tag}^" >/dev/null 2>&1; then
@@ -76,7 +77,7 @@ jobs:
             echo "## 安装与启动"
             echo '```bash'
             echo '# 下载后安装（示例）'
-            echo 'sudo apt install ./logtool_0.2.4_amd64.deb'
+            echo "sudo apt install ./${example_deb}"
             echo
             echo '# 查看服务状态'
             echo 'sudo systemctl status logtool --no-pager'

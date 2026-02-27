@@ -117,6 +117,10 @@ pub struct StreamLine {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ErrorResponse {
     pub error: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub code: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hint: Option<String>,
 }
 
 impl Default for Config {
@@ -145,13 +149,14 @@ impl Default for Config {
 pub fn parse_args(args: &[String]) -> Result<Action, String> {
     let mut config = Config::default();
     let mut i = 0usize;
+    let mut max_lines_explicit = false;
 
     while i < args.len() {
         let arg = &args[i];
 
         match arg.as_str() {
             "--help" | "-h" | "help" => return Ok(Action::Help),
-            "--version" | "-V" | "version" => {
+            "--version" | "-V" | "-v" | "version" => {
                 return standalone_action(args, arg, Action::Version);
             }
             "--doctor" | "doctor" => return standalone_action(args, arg, Action::Doctor),
@@ -191,6 +196,7 @@ pub fn parse_args(args: &[String]) -> Result<Action, String> {
             "--max-lines" | "-n" => {
                 let value = get_next_value(args, &mut i, "--max-lines")?;
                 config.max_lines = Some(parse_positive_usize(&value, "--max-lines")?);
+                max_lines_explicit = true;
             }
             "--top" => {
                 let value = get_next_value(args, &mut i, "--top")?;
@@ -219,6 +225,7 @@ pub fn parse_args(args: &[String]) -> Result<Action, String> {
                     config.priority = normalize_priority(value.to_string())?;
                 } else if let Some(value) = arg.strip_prefix("--max-lines=") {
                     config.max_lines = Some(parse_positive_usize(value, "--max-lines")?);
+                    max_lines_explicit = true;
                 } else if let Some(value) = arg.strip_prefix("--top=") {
                     config.top = parse_positive_usize(value, "--top")?;
                 } else if let Some(value) = arg.strip_prefix("--boot=") {
@@ -228,12 +235,20 @@ pub fn parse_args(args: &[String]) -> Result<Action, String> {
                         config.boot = BootFilter::Value(value.to_string());
                     }
                 } else {
-                    return Err(format!("未知选项：{arg}\n\n{}", help_text()));
+                    return Err(format!(
+                        "未知选项：{arg}\n修复：运行 logtool --help 查看可用参数。\n\n{}",
+                        help_text()
+                    ));
                 }
             }
         }
 
         i += 1;
+    }
+
+    // 流模式跟随输出在未显式指定 --max-lines 时默认不截断。
+    if config.mode == RunMode::Stream && config.follow && !max_lines_explicit {
+        config.max_lines = None;
     }
 
     validate_config(&config)?;
@@ -249,11 +264,15 @@ fn standalone_action(args: &[String], arg: &str, action: Action) -> Result<Actio
 
 pub fn validate_config(config: &Config) -> Result<(), String> {
     if config.follow && config.mode == RunMode::Analyze {
-        return Err("--follow 只能搭配 --stream 使用".to_string());
+        return Err(
+            "--follow 只能搭配 --stream 使用\n修复：运行 logtool --stream --follow".to_string(),
+        );
     }
 
     if config.output_json && config.mode == RunMode::Analyze {
-        return Err("--json 只能搭配 --stream 使用".to_string());
+        return Err(
+            "--json 只能搭配 --stream 使用\n修复：运行 logtool --stream --json".to_string(),
+        );
     }
 
     Ok(())
@@ -261,7 +280,9 @@ pub fn validate_config(config: &Config) -> Result<(), String> {
 
 fn get_next_value(args: &[String], index: &mut usize, flag: &str) -> Result<String, String> {
     if *index + 1 >= args.len() {
-        return Err(format!("缺少 {flag} 的参数值"));
+        return Err(format!(
+            "缺少 {flag} 的参数值\n修复：运行 logtool --help 查看参数示例"
+        ));
     }
     *index += 1;
     Ok(args[*index].clone())
@@ -288,18 +309,32 @@ fn is_boot_offset(value: &str) -> bool {
 fn parse_positive_usize(value: &str, flag: &str) -> Result<usize, String> {
     let parsed = value
         .parse::<usize>()
-        .map_err(|_| format!("{flag} 需要一个正整数，实际输入：{value}"))?;
+        .map_err(|_| format!("{flag} 需要一个正整数，实际输入：{value}\n修复：示例 {flag} 50"))?;
     if parsed == 0 {
-        return Err(format!("{flag} 必须大于 0"));
+        return Err(format!("{flag} 必须大于 0\n修复：示例 {flag} 50"));
     }
     Ok(parsed)
 }
 
 fn normalize_priority(value: String) -> Result<String, String> {
-    if value.is_empty() {
-        return Err("优先级不能为空".to_string());
-    }
-    Ok(value.to_ascii_lowercase())
+    let raw = value.trim().to_ascii_lowercase();
+    let normalized = match raw.as_str() {
+        "0" | "emerg" | "emergency" | "panic" => "0",
+        "1" | "alert" => "1",
+        "2" | "crit" | "critical" => "2",
+        "3" | "err" | "error" => "3",
+        "4" | "warning" | "warn" => "4",
+        "5" | "notice" => "5",
+        "6" | "info" | "informational" | "information" => "6",
+        "7" | "debug" => "7",
+        _ => {
+            return Err(format!(
+                "无效优先级：{value}\n修复：使用 0-7 或 err/warning/info/debug（可运行：logtool --help）"
+            ));
+        }
+    };
+
+    Ok(normalized.to_string())
 }
 
 // ── 日志分析核心 ─────────────────────────────────────────────
@@ -967,7 +1002,19 @@ pub fn stream_error_line(message: String) -> StreamLine {
 }
 
 pub fn daemon_error(message: String) -> ErrorResponse {
-    ErrorResponse { error: message }
+    daemon_error_with_details(message, None, None)
+}
+
+pub fn daemon_error_with_details(
+    message: String,
+    code: Option<&str>,
+    hint: Option<String>,
+) -> ErrorResponse {
+    ErrorResponse {
+        error: message,
+        code: code.map(|v| v.to_string()),
+        hint,
+    }
 }
 
 fn shell_escape(value: &str) -> String {
@@ -1052,7 +1099,7 @@ pub fn help_text() -> &'static str {
 
 选项：
   -h, --help                显示此帮助信息
-  -V, --version             显示版本信息（需单独使用）
+  -v, -V, --version         显示版本信息（需单独使用）
       --doctor              运行环境自检（需单独使用）
       --list-boots          列出启动周期（需单独使用）
   -f, --follow              持续输出新日志（仅 --stream 模式）
@@ -1061,8 +1108,8 @@ pub fn help_text() -> &'static str {
   -g, --grep <关键词>       按关键词过滤（可重复，AND 逻辑）
   -b, --boot [id]           仅当前启动周期日志，或指定启动 ID
       --all-boots           跨所有启动周期排查（默认）
-  -p, --priority <级别>     优先级过滤（默认：3 / 错误）
-  -n, --max-lines <N>       最多扫描/输出的匹配日志行数
+  -p, --priority <级别>     优先级过滤（支持 0-7 或 err/warning/info/debug，默认：3）
+  -n, --max-lines <N>       最多扫描/输出的匹配日志行数（--stream --follow 默认不限制）
       --top <N>             分析报告展示前 N 个可疑来源（默认：10）
       --since <时间>        开始时间（默认：\"2 hours ago\"）
       --until <时间>        结束时间
@@ -1111,6 +1158,7 @@ mod tests {
         };
         assert_eq!(config.mode, RunMode::Stream);
         assert!(config.follow);
+        assert_eq!(config.max_lines, None);
     }
 
     #[test]
@@ -1122,6 +1170,12 @@ mod tests {
     #[test]
     fn version_flag_returns_version_action() {
         let action = parse(&["--version"]).expect("解析应成功");
+        assert_eq!(action, Action::Version);
+    }
+
+    #[test]
+    fn version_short_flag_lowercase_returns_version_action() {
+        let action = parse(&["-v"]).expect("解析应成功");
         assert_eq!(action, Action::Version);
     }
 
@@ -1180,6 +1234,30 @@ mod tests {
     }
 
     #[test]
+    fn priority_alias_warning_normalizes_to_numeric() {
+        let action = parse(&["--priority", "warning"]).expect("解析应成功");
+        let Action::Run(config) = action else {
+            panic!("应为 Action::Run");
+        };
+        assert_eq!(config.priority, "4");
+    }
+
+    #[test]
+    fn priority_invalid_value_is_rejected() {
+        let err = parse(&["--priority", "verbose"]).expect_err("解析应失败");
+        assert!(err.contains("无效优先级"));
+    }
+
+    #[test]
+    fn stream_follow_honors_explicit_max_lines() {
+        let action = parse(&["--stream", "--follow", "--max-lines", "20"]).expect("解析应成功");
+        let Action::Run(config) = action else {
+            panic!("应为 Action::Run");
+        };
+        assert_eq!(config.max_lines, Some(20));
+    }
+
+    #[test]
     fn parses_json_event() {
         let line = r#"{"MESSAGE":"segfault at 0 ip ...","PRIORITY":"3","_SYSTEMD_UNIT":"foo.service","_EXE":"/usr/bin/foo","_COMM":"foo","SYSLOG_IDENTIFIER":"foo"}"#;
         let event = parse_json_event(line).expect("JSON 应解析成功");
@@ -1235,5 +1313,27 @@ mod tests {
         let payload = daemon_error("bad request".to_string());
         let json = serde_json::to_string(&payload).expect("序列化应成功");
         assert!(json.contains("\"error\":\"bad request\""));
+        assert!(!json.contains("\"code\":"));
+    }
+
+    #[test]
+    fn error_response_deserializes_legacy_payload() {
+        let payload = r#"{"error":"old style"}"#;
+        let parsed: ErrorResponse = serde_json::from_str(payload).expect("反序列化应成功");
+        assert_eq!(parsed.error, "old style");
+        assert_eq!(parsed.code, None);
+        assert_eq!(parsed.hint, None);
+    }
+
+    #[test]
+    fn daemon_error_with_details_serializes_code_and_hint() {
+        let payload = daemon_error_with_details(
+            "bad request".to_string(),
+            Some("invalid_json"),
+            Some("运行：logtool --help".to_string()),
+        );
+        let json = serde_json::to_string(&payload).expect("序列化应成功");
+        assert!(json.contains("\"code\":\"invalid_json\""));
+        assert!(json.contains("\"hint\":\"运行：logtool --help\""));
     }
 }

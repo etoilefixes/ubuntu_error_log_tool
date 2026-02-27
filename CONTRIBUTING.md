@@ -24,6 +24,12 @@ cargo fmt --check
 - 任何行为变化都应更新文档
 - 保持轻量化目标，避免引入重依赖
 
+### 2.1 CLI/协议兼容约定
+
+- `--priority` 仅接受 `0-7` 或标准文本级别（如 `err`、`warning`、`info`、`debug`）
+- `--stream --follow` 且未显式设置 `--max-lines` 时，默认不限制行数
+- daemon 错误响应允许携带可选 `code` 与 `hint` 字段，新增字段必须保持向后兼容
+
 ### 3. 提交流程
 
 1. 新建分支：`feat/...`、`fix/...`、`docs/...`
@@ -76,6 +82,12 @@ cargo fmt --check
 - Ensure CLI/daemon error messages are actionable
 - Update docs for any behavior change
 - Preserve lightweight runtime and dependency footprint
+
+### 2.1 CLI/Protocol Compatibility Notes
+
+- `--priority` accepts only `0-7` or canonical text levels (for example `err`, `warning`, `info`, `debug`)
+- `--stream --follow` defaults to no line limit when `--max-lines` is not explicitly provided
+- daemon error responses may include optional `code` and `hint`; any additions must remain backward-compatible
 
 ### 3. Commit Workflow
 

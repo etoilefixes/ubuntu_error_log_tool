@@ -6,7 +6,8 @@ Wants=systemd-journald.service
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/logtool-daemon
+# 与 deb 安装路径保持一致（/usr/bin/logtool-daemon）。
+ExecStart=/usr/bin/logtool-daemon
 ExecStartPre=/bin/rm -f /run/logtool.sock
 Restart=on-failure
 RestartSec=5
@@ -18,6 +19,9 @@ ReadOnlyPaths=/
 ReadWritePaths=/run
 NoNewPrivileges=true
 PrivateTmp=true
+
+# Socket 由守护进程创建为 0660，推荐 root:logtool。
+# 使用 logtool CLI 的普通用户需加入 logtool 组。
 
 [Install]
 WantedBy=multi-user.target
